@@ -6,7 +6,6 @@ import com.example.sales_system.common.exception.DatabaseOperationException;
 import com.example.sales_system.common.exception.ResourceNotFoundException;
 import com.example.sales_system.product.model.Product;
 import com.example.sales_system.product.repository.ProductRepository;
-import com.example.sales_system.sale.audit.SaleAuditService;
 import com.example.sales_system.sale.dto.creational.CreateSaleDto;
 import com.example.sales_system.sale.dto.creational.CreateSaleItemDto;
 import com.example.sales_system.sale.dto.creational.UpdateSaleDto;
@@ -23,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -86,18 +86,42 @@ public class SaleServiceImpl implements SaleService {
             if (dto.getSeller() != null)
                 sale.setSeller(dto.getSeller());
 
-            var updatesById = dto.getItems()
+            // Extract all productIds from update DTO
+            List<Long> incomingProductIds = dto.getItems()
                     .stream()
-                    .collect(java.util.stream.Collectors.toMap(
-                            UpdateSaleItemDto::getId, u -> u));
+                    .map(UpdateSaleItemDto::getProductId)
+                    .distinct()
+                    .toList();
+
+            // Validate products exist
+            List<Product> foundProducts = productRepo.findAllById(incomingProductIds);
+            if (foundProducts.size() != incomingProductIds.size()) {
+                throw new ResourceNotFoundException("Product", "One or more product IDs do not exist: " + incomingProductIds);
+            }
+
+            // Validate that the sale contains those product IDs
+            List<Long> productIdsInSale = sale.getItems()
+                    .stream()
+                    .map(i -> i.getProduct().getId())
+                    .toList();
+
+            for (Long incomingId : incomingProductIds) {
+                if (!productIdsInSale.contains(incomingId)) {
+                    throw new ResourceNotFoundException("SaleItem", "Product ID " + incomingId + " is not part of the current sale.");
+                }
+            }
+
+            // Map updates by productId
+            var updatesByProductId = dto.getItems()
+                    .stream()
+                    .collect(Collectors.toMap(UpdateSaleItemDto::getProductId, u -> u));
 
             BigDecimal newTotal = BigDecimal.ZERO;
 
-            /* update existing items */
             for (SaleItem item : sale.getItems()) {
-
-                UpdateSaleItemDto upd = updatesById.get(item.getId());
-                if (upd == null) continue; // ignore items not referenced
+                Long productId = item.getProduct().getId();
+                UpdateSaleItemDto upd = updatesByProductId.get(productId);
+                if (upd == null) continue;
 
                 auditService.logChanges(item, upd);
 
@@ -111,10 +135,12 @@ public class SaleServiceImpl implements SaleService {
 
             sale.setTotal(newTotal);
             return mapper.toResponseDto(saleRepo.save(sale));
+
         } catch (ResourceNotFoundException nf) {
             throw nf;
         } catch (Exception ex) {
             throw new DatabaseOperationException("Failed to update sale", ex);
         }
     }
+
 }

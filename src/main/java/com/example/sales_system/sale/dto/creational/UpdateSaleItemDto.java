@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 @Data
 public class UpdateSaleItemDto {
     @NotNull(message = "id is required")
-    private Long id;
+    private Long productId;
 
     @NotNull(message = "quantity is required")
     @Min(value = 1, message = "quantity must be greater than 0")

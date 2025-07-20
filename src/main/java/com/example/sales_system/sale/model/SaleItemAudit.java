@@ -1,4 +1,4 @@
-package com.example.sales_system.sale.audit;
+package com.example.sales_system.sale.model;
 
 import jakarta.persistence.*;
 import lombok.*;
