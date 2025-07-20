@@ -37,5 +37,12 @@ Inside src/main/resources/assets/ you will find:
 | `class-diagram.png`       | UML class diagram for all core entities.               |
 | `postman-collection.json` | Ready‑made Postman collection covering every endpoint. |
 
+in the postman file: PUT request to update the sale:
+Use: items: {
+         productId (not id)
+         ..
+         }
 
+This was not updated by the json file, that's all!
+         
 
